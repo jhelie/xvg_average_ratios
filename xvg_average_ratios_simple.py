@@ -104,7 +104,7 @@ if args.residues and args.flipflops:
 	print "Error: you can't specify both --residues and --flipflops."
 	sys.exit(1)
 if not args.residues and not args.flipflops:
-	print "Error: you need to specify either --residues and --flipflops."
+	print "Error: you need to specify either --residues or --flipflops."
 	sys.exit(1)
 
 ##########################################################################################
