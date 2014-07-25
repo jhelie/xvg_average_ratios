@@ -40,8 +40,8 @@ Option	      Default  	Description
 -----------------------------------------------------
 -f			: xvg file(s)
 -o	ratios_avg	: name of outptut file
---residues
---flipflops
+--residues		: if files contain residues ratios
+--flipflops		: if files contain flipflop contact type ratios
 --comments	@,#	: lines starting with these characters will be considered as comment
 
 Other options
