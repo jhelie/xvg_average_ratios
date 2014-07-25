@@ -39,7 +39,9 @@ expect (see this thread: https://github.com/scipy/scipy/issues/2898).
 Option	      Default  	Description                    
 -----------------------------------------------------
 -f			: xvg file(s)
--o	residues_avg	: name of outptut file
+-o	ratios_avg	: name of outptut file
+--residues
+--flipflops
 --comments	@,#	: lines starting with these characters will be considered as comment
 
 Other options
@@ -52,6 +54,8 @@ Other options
 #options
 parser.add_argument('-f', nargs='+', dest='xvgfilenames', help=argparse.SUPPRESS, required=True)
 parser.add_argument('-o', nargs=1, dest='output_file', default=["residues_avg"], help=argparse.SUPPRESS)
+parser.add_argument('--residues', dest='residues', action='store_true', help=argparse.SUPPRESS)
+parser.add_argument('--flipflops', dest='flipflops', action='store_true', help=argparse.SUPPRESS)
 parser.add_argument('--comments', nargs=1, dest='comments', default=['@,#'], help=argparse.SUPPRESS)
 
 #other options
@@ -96,6 +100,13 @@ for f in args.xvgfilenames:
 		print "Error: file " + str(f) + " not found."
 		sys.exit(1)
 
+if args.residues and args.flipflops:
+	print "Error: you can't specify both --residues and --flipflops."
+	sys.exit(1)
+if not args.residues and not args.flipflops:
+	print "Error: you need to specify either --residues and --flipflops."
+	sys.exit(1)
+
 ##########################################################################################
 # FUNCTIONS DEFINITIONS
 ##########################################################################################
@@ -110,8 +121,10 @@ def load_xvg():															#DONE
 	global nb_cols
 	global weights
 	global distance
-	global data_ratios_avg
-	global data_ratios_std
+	global data_residues_ratios_avg
+	global data_residues_ratios_std
+	global data_flipflops_ratios_avg
+	global data_flipflops_ratios_std
 
 	nb_rows = 0
 	nb_cols = 0
@@ -151,8 +164,14 @@ def load_xvg():															#DONE
 		if f_index == 0:
 			nb_rows = np.shape(tmp_data)[0]
 			distance = np.zeros((nb_rows, 1))													#distance from cluster
-			data_ratios_avg = np.zeros((nb_rows, len(args.xvgfilenames)))
-			data_ratios_std = np.zeros((nb_rows, len(args.xvgfilenames)))
+			if args.residues:
+				data_residues_ratios_avg = np.zeros((nb_rows, len(args.xvgfilenames)))
+				data_residues_ratios_std = np.zeros((nb_rows, len(args.xvgfilenames)))
+			else:
+				data_flipflops_basic_ratios_avg = np.zeros((nb_rows, len(args.xvgfilenames)))
+				data_flipflops_basic_ratios_avg = np.zeros((nb_rows, len(args.xvgfilenames)))
+				data_flipflops_hphob_ratios_avg = np.zeros((nb_rows, len(args.xvgfilenames)))
+				data_flipflops_hphob_ratios_std = np.zeros((nb_rows, len(args.xvgfilenames)))
 		else:
 			if np.shape(tmp_data)[0] != nb_rows:
 				print "Error: file " + str(filename) + " has " + str(np.shape(tmp_data)[0]) + " data rows, whereas file " + str(args.xvgfilenames[0]) + " has " + str(nb_rows) + " data rows."
@@ -173,9 +192,15 @@ def load_xvg():															#DONE
 				sys.exit(1)
 		
 		#store data
-		data_ratios_avg[:,f_index] = tmp_data[:,1]
-		data_ratios_std[:,f_index] = tmp_data[:,2]
-
+		if args.residues:
+			data_residues_ratios_avg[:,f_index] = tmp_data[:,1]
+			data_residues_ratios_std[:,f_index] = tmp_data[:,2]
+		else:
+			data_flipflops_basic_ratios_avg[:,f_index] = tmp_data[:,1]
+			data_flipflops_basic_ratios_std[:,f_index] = tmp_data[:,2]
+			data_flipflops_hphob_ratios_avg[:,f_index] = tmp_data[:,3]
+			data_flipflops_hphob_ratios_std[:,f_index] = tmp_data[:,4]
+			
 	#check weights sum
 	if np.sum(weights) == len(args.xvgfilenames):
 		print "Warning: sum of weight = nb of files supplied, maybe double check each file contain the nb of corresponding flipflop as weight."
@@ -188,68 +213,192 @@ def load_xvg():															#DONE
 
 def calculate_avg():													#DONE
 
-	#avg and std of averages
-	#-----------------------
-	global avg_ratios_avg
-	global std_ratios_avg
+	#case: protein residues
+	#======================
+	if args.residues:
+		#avg and std of averages
+		#-----------------------
+		global avg_residues_ratios_avg
+		global std_residues_ratios_avg
+		
+		#remove nan values of the weights
+		weights_nan = np.zeros((nb_rows, 1))	
+		weights_nan_sq = np.zeros((nb_rows, 1))	
+		nb_files = np.ones((nb_rows, 1)) * len(args.xvgfilenames)
+		tmp_weights_nan = np.zeros((nb_rows, len(args.xvgfilenames)))
+		for r in range(0, nb_rows):
+			tmp_weights_nan[r,:] = weights
+			for f_index in range(0, len(args.xvgfilenames)):
+				if np.isnan(data_residues_ratios_avg[r,f_index]):
+					tmp_weights_nan[r,f_index] = 0
+					nb_files[r,0] -= 1
+		weights_nan[:,0] = np.nansum(tmp_weights_nan, axis = 1)
+		weights_nan_sq[:,0] = np.nansum(tmp_weights_nan**2, axis = 1)	
+		weights_nan[weights_nan == 0] = 1
+		
+		#avg
+		avg_residues_ratios_avg = np.zeros((nb_rows,1))
+		avg_residues_ratios_avg[:,0] =  scipy.stats.nanmean(data_residues_ratios_avg * weights * nb_files / weights_nan, axis = 1)
 	
-	#remove nan values of the weights
-	weights_nan = np.zeros((nb_rows, 1))	
-	weights_nan_sq = np.zeros((nb_rows, 1))	
-	nb_files = np.ones((nb_rows, 1)) * len(args.xvgfilenames)
-	tmp_weights_nan = np.zeros((nb_rows, len(args.xvgfilenames)))
-	for r in range(0, nb_rows):
-		tmp_weights_nan[r,:] = weights
-		for f_index in range(0, len(args.xvgfilenames)):
-			if np.isnan(data_ratios_avg[r,f_index]):
-				tmp_weights_nan[r,f_index] = 0
-				nb_files[r,0] -= 1
-	weights_nan[:,0] = np.nansum(tmp_weights_nan, axis = 1)
-	weights_nan_sq[:,0] = np.nansum(tmp_weights_nan**2, axis = 1)	
-	weights_nan[weights_nan == 0] = 1
+		#std
+		tmp_std = np.zeros((nb_rows, 1))
+		tmp_std[:,0] = np.nansum(weights * (data_residues_ratios_avg - avg_residues_ratios_avg[:,0:1])**2, axis = 1)			
+		tmp_div = np.copy((weights_nan)**2 - weights_nan_sq)
+		tmp_div[tmp_div == 0] = 1
+		std_residues_ratios_avg = np.sqrt(weights_nan / tmp_div * tmp_std)
 	
-	#avg
-	avg_ratios_avg = np.zeros((nb_rows,1))
-	avg_ratios_avg[:,0] =  scipy.stats.nanmean(data_ratios_avg * weights * nb_files / weights_nan, axis = 1)
-
-	#std
-	tmp_std = np.zeros((nb_rows, 1))
-	tmp_std[:,0] = np.nansum(weights * (data_ratios_avg - avg_ratios_avg[:,0:1])**2, axis = 1)			
-	tmp_div = np.copy((weights_nan)**2 - weights_nan_sq)
-	tmp_div[tmp_div == 0] = 1
-	std_ratios_avg = np.sqrt(weights_nan / tmp_div * tmp_std)
-
-
-	#avg and std of standard devs
-	#----------------------------
-	global avg_ratios_std
-	global std_ratios_std
-
-	#remove nan values of the weights
-	weights_std = np.zeros((nb_rows, 1))	
-	weights_std_sq = np.zeros((nb_rows, 1))	
-	nb_files = np.ones((nb_rows, 1)) * len(args.xvgfilenames)
-	tmp_weights_std = np.zeros((nb_rows, len(args.xvgfilenames)))
-	for r in range(0, nb_rows):
-		tmp_weights_std[r,:] = weights
-		for f_index in range(0, len(args.xvgfilenames)):
-			if np.isnan(data_ratios_std[r,f_index]):
-				tmp_weights_std[r,f_index] = 0
-				nb_files[r,0] -= 1
-	weights_std[:,0] = np.nansum(tmp_weights_std, axis = 1)
-	weights_std_sq[:,0] = np.nansum(tmp_weights_std**2, axis = 1)	
-	weights_std[weights_std == 0] = 1
 	
-	#avg
-	avg_ratios_std = np.zeros((nb_rows,1))
-	avg_ratios_std[:,0] =  scipy.stats.nanmean(data_ratios_std * weights * nb_files / weights_std, axis = 1)
+		#avg and std of standard devs
+		#----------------------------
+		global avg_residues_ratios_std
+		global std_residues_ratios_std
+	
+		#remove nan values of the weights
+		weights_std = np.zeros((nb_rows, 1))	
+		weights_std_sq = np.zeros((nb_rows, 1))	
+		nb_files = np.ones((nb_rows, 1)) * len(args.xvgfilenames)
+		tmp_weights_std = np.zeros((nb_rows, len(args.xvgfilenames)))
+		for r in range(0, nb_rows):
+			tmp_weights_std[r,:] = weights
+			for f_index in range(0, len(args.xvgfilenames)):
+				if np.isnan(data_residues_ratios_std[r,f_index]):
+					tmp_weights_std[r,f_index] = 0
+					nb_files[r,0] -= 1
+		weights_std[:,0] = np.nansum(tmp_weights_std, axis = 1)
+		weights_std_sq[:,0] = np.nansum(tmp_weights_std**2, axis = 1)	
+		weights_std[weights_std == 0] = 1
+		
+		#avg
+		avg_residues_ratios_std = np.zeros((nb_rows,1))
+		avg_residues_ratios_std[:,0] =  scipy.stats.nanmean(data_residues_ratios_std * weights * nb_files / weights_std, axis = 1)
+	
+		#std
+		tmp_std = np.zeros((nb_rows, 1))
+		tmp_std[:,0] = np.nansum(weights * (data_residues_ratios_std - avg_residues_ratios_std[:,0:1])**2, axis = 1)			
+		tmp_div = np.copy((weights_std)**2 - weights_std_sq)
+		tmp_div[tmp_div == 0] = 1
+		std_residues_ratios_std = np.sqrt(weights_std / tmp_div * tmp_std)
 
-	#std
-	tmp_std = np.zeros((nb_rows, 1))
-	tmp_std[:,0] = np.nansum(weights * (data_ratios_std - avg_ratios_std[:,0:1])**2, axis = 1)			
-	tmp_div = np.copy((weights_std)**2 - weights_std_sq)
-	tmp_div[tmp_div == 0] = 1
-	std_ratios_std = np.sqrt(weights_std / tmp_div * tmp_std)
+	#case: flipflop contacts
+	#=======================
+	else:	
+		#basic contacts: average
+		#--------------
+		global avg_flipflops_basic_ratios_avg
+		global std_flipflops_basic_ratios_avg
+
+		#remove nan values of the weights
+		weights_nan = np.zeros((nb_rows, 1))	
+		weights_nan_sq = np.zeros((nb_rows, 1))	
+		nb_files = np.ones((nb_rows, 1)) * len(args.xvgfilenames)
+		tmp_weights_nan = np.zeros((nb_rows, len(args.xvgfilenames)))
+		for r in range(0, nb_rows):
+			tmp_weights_nan[r,:] = weights
+			for f_index in range(0, len(args.xvgfilenames)):
+				if np.isnan(data_flipflops_basic_ratios_avg[r,f_index]):
+					tmp_weights_nan[r,f_index] = 0
+					nb_files[r,0] -= 1
+		weights_nan[:,0] = np.nansum(tmp_weights_nan, axis = 1)
+		weights_nan_sq[:,0] = np.nansum(tmp_weights_nan**2, axis = 1)	
+		weights_nan[weights_nan == 0] = 1
+		
+		#avg
+		avg_flipflops_basic_ratios_avg = np.zeros((nb_rows,1))
+		avg_flipflops_basic_ratios_avg[:,0] =  scipy.stats.nanmean(data_flipflops_basic_ratios_avg * weights * nb_files / weights_nan, axis = 1)
+	
+		#std
+		tmp_std = np.zeros((nb_rows, 1))
+		tmp_std[:,0] = np.nansum(weights * (data_flipflops_basic_ratios_avg - avg_flipflops_basic_ratios_avg[:,0:1])**2, axis = 1)			
+		tmp_div = np.copy((weights_nan)**2 - weights_nan_sq)
+		tmp_div[tmp_div == 0] = 1
+		std_flipflops_basic_ratios_avg = np.sqrt(weights_nan / tmp_div * tmp_std)
+	
+		#basic contacts: std
+		#--------------
+		#remove nan values of the weights
+		weights_std = np.zeros((nb_rows, 1))	
+		weights_std_sq = np.zeros((nb_rows, 1))	
+		nb_files = np.ones((nb_rows, 1)) * len(args.xvgfilenames)
+		tmp_weights_std = np.zeros((nb_rows, len(args.xvgfilenames)))
+		for r in range(0, nb_rows):
+			tmp_weights_std[r,:] = weights
+			for f_index in range(0, len(args.xvgfilenames)):
+				if np.isnan(data_flipflops_basic_ratios_std[r,f_index]):
+					tmp_weights_std[r,f_index] = 0
+					nb_files[r,0] -= 1
+		weights_std[:,0] = np.nansum(tmp_weights_std, axis = 1)
+		weights_std_sq[:,0] = np.nansum(tmp_weights_std**2, axis = 1)	
+		weights_std[weights_std == 0] = 1
+		
+		#avg
+		avg_flipflops_basic_ratios_std = np.zeros((nb_rows,1))
+		avg_flipflops_basic_ratios_std[:,0] =  scipy.stats.nanmean(data_flipflops_basic_ratios_std * weights * nb_files / weights_std, axis = 1)
+	
+		#std
+		tmp_std = np.zeros((nb_rows, 1))
+		tmp_std[:,0] = np.nansum(weights * (data_flipflops_basic_ratios_std - avg_flipflops_basic_ratios_std[:,0:1])**2, axis = 1)			
+		tmp_div = np.copy((weights_std)**2 - weights_std_sq)
+		tmp_div[tmp_div == 0] = 1
+		std_flipflops_basic_ratios_std = np.sqrt(weights_std / tmp_div * tmp_std)
+		
+		#hydrophobic contacts: average
+		#---------------------
+		global avg_flipflops_hphob_ratios_avg
+		global std_flipflops_hphob_ratios_avg
+
+		#remove nan values of the weights
+		weights_nan = np.zeros((nb_rows, 1))	
+		weights_nan_sq = np.zeros((nb_rows, 1))	
+		nb_files = np.ones((nb_rows, 1)) * len(args.xvgfilenames)
+		tmp_weights_nan = np.zeros((nb_rows, len(args.xvgfilenames)))
+		for r in range(0, nb_rows):
+			tmp_weights_nan[r,:] = weights
+			for f_index in range(0, len(args.xvgfilenames)):
+				if np.isnan(data_flipflops_hphob_ratios_avg[r,f_index]):
+					tmp_weights_nan[r,f_index] = 0
+					nb_files[r,0] -= 1
+		weights_nan[:,0] = np.nansum(tmp_weights_nan, axis = 1)
+		weights_nan_sq[:,0] = np.nansum(tmp_weights_nan**2, axis = 1)	
+		weights_nan[weights_nan == 0] = 1
+		
+		#avg
+		avg_flipflops_hphob_ratios_avg = np.zeros((nb_rows,1))
+		avg_flipflops_hphob_ratios_avg[:,0] =  scipy.stats.nanmean(data_flipflops_hphob_ratios_avg * weights * nb_files / weights_nan, axis = 1)
+	
+		#std
+		tmp_std = np.zeros((nb_rows, 1))
+		tmp_std[:,0] = np.nansum(weights * (data_flipflops_hphob_ratios_avg - avg_flipflops_hphob_ratios_avg[:,0:1])**2, axis = 1)			
+		tmp_div = np.copy((weights_nan)**2 - weights_nan_sq)
+		tmp_div[tmp_div == 0] = 1
+		std_flipflops_hphob_ratios_avg = np.sqrt(weights_nan / tmp_div * tmp_std)
+	
+		#hydrophobic contacts: std
+		#---------------------
+		#remove nan values of the weights
+		weights_std = np.zeros((nb_rows, 1))	
+		weights_std_sq = np.zeros((nb_rows, 1))	
+		nb_files = np.ones((nb_rows, 1)) * len(args.xvgfilenames)
+		tmp_weights_std = np.zeros((nb_rows, len(args.xvgfilenames)))
+		for r in range(0, nb_rows):
+			tmp_weights_std[r,:] = weights
+			for f_index in range(0, len(args.xvgfilenames)):
+				if np.isnan(data_flipflops_hphob_ratios_std[r,f_index]):
+					tmp_weights_std[r,f_index] = 0
+					nb_files[r,0] -= 1
+		weights_std[:,0] = np.nansum(tmp_weights_std, axis = 1)
+		weights_std_sq[:,0] = np.nansum(tmp_weights_std**2, axis = 1)	
+		weights_std[weights_std == 0] = 1
+		
+		#avg
+		avg_flipflops_hphob_ratios_std = np.zeros((nb_rows,1))
+		avg_flipflops_hphob_ratios_std[:,0] =  scipy.stats.nanmean(data_flipflops_hphob_ratios_std * weights * nb_files / weights_std, axis = 1)
+	
+		#std
+		tmp_std = np.zeros((nb_rows, 1))
+		tmp_std[:,0] = np.nansum(weights * (data_flipflops_hphob_ratios_std - avg_flipflops_hphob_ratios_std[:,0:1])**2, axis = 1)			
+		tmp_div = np.copy((weights_std)**2 - weights_std_sq)
+		tmp_div[tmp_div == 0] = 1
+		std_flipflops_hphob_ratios_std = np.sqrt(weights_std / tmp_div * tmp_std)
 
 	return
 
@@ -283,17 +432,35 @@ def write_xvg():														#DONE
 	output_xvg.write("@ legend box on\n")
 	output_xvg.write("@ legend loctype view\n")
 	output_xvg.write("@ legend 0.98, 0.8\n")
-	output_xvg.write("@ legend length 4\n")
-	output_xvg.write("@ s0 legend \"ratio_avg (avg)\"\n")
-	output_xvg.write("@ s1 legend \"ratio_avg (std)\"\n")
-	output_xvg.write("@ s0 legend \"ratio_std (avg)\"\n")
-	output_xvg.write("@ s1 legend \"ratio_std (std)\"\n")
+	if args.residues:
+		output_xvg.write("@ legend length 4\n")
+		output_xvg.write("@ s0 legend \"h/(h+b)_avg (avg)\"\n")
+		output_xvg.write("@ s1 legend \"h/(h+b)_avg (std)\"\n")
+		output_xvg.write("@ s2 legend \"h/(h+b)_std (avg)\"\n")
+		output_xvg.write("@ s3 legend \"h/(h+b)_std (std)\"\n")
+	else:
+		output_xvg.write("@ legend length 8\n")
+		output_xvg.write("@ s0 legend \"basic_contacts_avg (avg)\"\n")
+		output_xvg.write("@ s1 legend \"basic_contacts_avg (std)\"\n")
+		output_xvg.write("@ s2 legend \"basic_contacts_std (avg)\"\n")
+		output_xvg.write("@ s3 legend \"basic_contacts_avg (std)\"\n")
+		output_xvg.write("@ s4 legend \"hphob_contacts_avg (avg)\"\n")
+		output_xvg.write("@ s5 legend \"hphob_contacts_avg (std)\"\n")
+		output_xvg.write("@ s6 legend \"hphob_contacts_std (avg)\"\n")
+		output_xvg.write("@ s7 legend \"hphob_contacts_avg (std)\"\n")
 	
 	#data
-	for r in range(0, nb_rows):
-		results = str(distance[r,0])
-		results += "	" + "{:.6e}".format(avg_ratios_avg[r,0]) + "	" + "{:.6e}".format(avg_ratios_std[r,0]) + "	" + "{:.6e}".format(std_ratios_avg[r,0]) + "	" + "{:.6e}".format(std_ratios_std[r,0])
-		output_xvg.write(results + "\n")		
+	if args.residues:
+		for r in range(0, nb_rows):
+			results = str(distance[r,0])
+			results += "	" + "{:.6e}".format(avg_residues_ratios_avg[r,0]) + "	" + "{:.6e}".format(avg_residues_ratios_std[r,0]) + "	" + "{:.6e}".format(std_residues_ratios_avg[r,0]) + "	" + "{:.6e}".format(std_residues_ratios_std[r,0])
+			output_xvg.write(results + "\n")		
+	else:
+		for r in range(0, nb_rows):
+			results = str(distance[r,0])
+			results += "	" + "{:.6e}".format(avg_flipflops_basic_ratios_avg[r,0]) + "	" + "{:.6e}".format(avg_flipflops_basic_ratios_std[r,0]) + "	" + "{:.6e}".format(std_flipflops_basic_ratios_avg[r,0]) + "	" + "{:.6e}".format(std_flipflops_basic_ratios_std[r,0]) + "	" + "{:.6e}".format(avg_flipflops_hphob_ratios_avg[r,0]) + "	" + "{:.6e}".format(avg_flipflops_hphob_ratios_std[r,0]) + "	" + "{:.6e}".format(std_flipflops_hphob_ratios_avg[r,0]) + "	" + "{:.6e}".format(std_flipflops_hphob_ratios_std[r,0])
+			output_xvg.write(results + "\n")		
+		
 	output_xvg.close()	
 	
 	return
