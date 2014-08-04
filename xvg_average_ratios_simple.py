@@ -123,8 +123,10 @@ def load_xvg():															#DONE
 	global distance
 	global data_residues_ratios_avg
 	global data_residues_ratios_std
-	global data_flipflops_ratios_avg
-	global data_flipflops_ratios_std
+	global data_flipflops_basic_ratios_avg
+	global data_flipflops_basic_ratios_std
+	global data_flipflops_hphob_ratios_avg
+	global data_flipflops_hphob_ratios_std
 
 	nb_rows = 0
 	nb_cols = 0
@@ -169,7 +171,7 @@ def load_xvg():															#DONE
 				data_residues_ratios_std = np.zeros((nb_rows, len(args.xvgfilenames)))
 			else:
 				data_flipflops_basic_ratios_avg = np.zeros((nb_rows, len(args.xvgfilenames)))
-				data_flipflops_basic_ratios_avg = np.zeros((nb_rows, len(args.xvgfilenames)))
+				data_flipflops_basic_ratios_std = np.zeros((nb_rows, len(args.xvgfilenames)))
 				data_flipflops_hphob_ratios_avg = np.zeros((nb_rows, len(args.xvgfilenames)))
 				data_flipflops_hphob_ratios_std = np.zeros((nb_rows, len(args.xvgfilenames)))
 		else:
@@ -282,7 +284,7 @@ def calculate_avg():													#DONE
 	#case: flipflop contacts
 	#=======================
 	else:	
-		#basic contacts: average
+		#basic contacts: avg and std of averages
 		#--------------
 		global avg_flipflops_basic_ratios_avg
 		global std_flipflops_basic_ratios_avg
@@ -313,8 +315,11 @@ def calculate_avg():													#DONE
 		tmp_div[tmp_div == 0] = 1
 		std_flipflops_basic_ratios_avg = np.sqrt(weights_nan / tmp_div * tmp_std)
 	
-		#basic contacts: std
+		#basic contacts: avg and std of standard devs
 		#--------------
+		global avg_flipflops_basic_ratios_std
+		global std_flipflops_basic_ratios_std
+
 		#remove nan values of the weights
 		weights_std = np.zeros((nb_rows, 1))	
 		weights_std_sq = np.zeros((nb_rows, 1))	
@@ -341,7 +346,7 @@ def calculate_avg():													#DONE
 		tmp_div[tmp_div == 0] = 1
 		std_flipflops_basic_ratios_std = np.sqrt(weights_std / tmp_div * tmp_std)
 		
-		#hydrophobic contacts: average
+		#hydrophobic contacts: avg and std of averages
 		#---------------------
 		global avg_flipflops_hphob_ratios_avg
 		global std_flipflops_hphob_ratios_avg
@@ -372,8 +377,11 @@ def calculate_avg():													#DONE
 		tmp_div[tmp_div == 0] = 1
 		std_flipflops_hphob_ratios_avg = np.sqrt(weights_nan / tmp_div * tmp_std)
 	
-		#hydrophobic contacts: std
+		#hydrophobic contacts: avg and std of standard devs
 		#---------------------
+		global avg_flipflops_hphob_ratios_std
+		global std_flipflops_hphob_ratios_std
+		
 		#remove nan values of the weights
 		weights_std = np.zeros((nb_rows, 1))	
 		weights_std_sq = np.zeros((nb_rows, 1))	
@@ -442,12 +450,12 @@ def write_xvg():														#DONE
 		output_xvg.write("@ legend length 8\n")
 		output_xvg.write("@ s0 legend \"basic_contacts_avg (avg)\"\n")
 		output_xvg.write("@ s1 legend \"basic_contacts_avg (std)\"\n")
-		output_xvg.write("@ s2 legend \"basic_contacts_std (avg)\"\n")
-		output_xvg.write("@ s3 legend \"basic_contacts_avg (std)\"\n")
-		output_xvg.write("@ s4 legend \"hphob_contacts_avg (avg)\"\n")
-		output_xvg.write("@ s5 legend \"hphob_contacts_avg (std)\"\n")
+		output_xvg.write("@ s2 legend \"hphob_contacts_avg (avg)\"\n")
+		output_xvg.write("@ s3 legend \"hphob_contacts_avg (std)\"\n")
+		output_xvg.write("@ s4 legend \"basic_contacts_std (avg)\"\n")
+		output_xvg.write("@ s5 legend \"basic_contacts_std (std)\"\n")
 		output_xvg.write("@ s6 legend \"hphob_contacts_std (avg)\"\n")
-		output_xvg.write("@ s7 legend \"hphob_contacts_avg (std)\"\n")
+		output_xvg.write("@ s7 legend \"hphob_contacts_std (std)\"\n")
 	
 	#data
 	if args.residues:
@@ -458,7 +466,7 @@ def write_xvg():														#DONE
 	else:
 		for r in range(0, nb_rows):
 			results = str(distance[r,0])
-			results += "	" + "{:.6e}".format(avg_flipflops_basic_ratios_avg[r,0]) + "	" + "{:.6e}".format(avg_flipflops_basic_ratios_std[r,0]) + "	" + "{:.6e}".format(std_flipflops_basic_ratios_avg[r,0]) + "	" + "{:.6e}".format(std_flipflops_basic_ratios_std[r,0]) + "	" + "{:.6e}".format(avg_flipflops_hphob_ratios_avg[r,0]) + "	" + "{:.6e}".format(avg_flipflops_hphob_ratios_std[r,0]) + "	" + "{:.6e}".format(std_flipflops_hphob_ratios_avg[r,0]) + "	" + "{:.6e}".format(std_flipflops_hphob_ratios_std[r,0])
+			results += "	" + "{:.6e}".format(avg_flipflops_basic_ratios_avg[r,0]) + "	" + "{:.6e}".format(std_flipflops_basic_ratios_avg[r,0]) + "	" + "{:.6e}".format(avg_flipflops_hphob_ratios_avg[r,0]) + "	" + "{:.6e}".format(std_flipflops_hphob_ratios_avg[r,0]) + "	" + "{:.6e}".format(avg_flipflops_basic_ratios_std[r,0]) + "	" + "{:.6e}".format(std_flipflops_basic_ratios_std[r,0]) + "	" + "{:.6e}".format(avg_flipflops_hphob_ratios_std[r,0]) + "	" + "{:.6e}".format(std_flipflops_hphob_ratios_std[r,0])
 			output_xvg.write(results + "\n")		
 		
 	output_xvg.close()	
